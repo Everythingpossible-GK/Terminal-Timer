@@ -459,8 +459,8 @@
             DISCHARGE: ["1. FROM PARK POSITION TO LOCK ON TRUCK", "2. FROM LOCK ON TRUCK TO UNLOCK ON TARGET ROW", "3. FROM UNLOCK TO PARK POSITION"]
         },
         TT: {
-            LOADING: ["1. Lifted by QC", "2. Move to RTG", "3. Rec from RTG", "4. Move to PULL", "5. Move to Pinning", "6. Fixing twistlock", "7. Standby"],
-            DISCHARGE: ["1. Rec from QC", "2. Move to Pinning", "3. Twistlocks out", "4. Move to RTG", "5. Discharged", "6. Move to PULL", "7. Standby"]
+            LOADING: ["1. Lifted by QC", "2. Move to RTG", "3. Rec from RTG", "4. Move to PULL", "5. Move to Pinning", "6. Fixing twistlock", "7. Standby", "8. Move under crane"],
+            DISCHARGE: ["1. Rec from QC", "2. Move to Pinning", "3. Twistlocks out", "4. Move to RTG", "5. Discharged", "6. Move to PULL", "7. Standby", "8. Move under crane"]
         },
         DEFAULT: ["1. Start cycle", "2. End cycle"]
     };
@@ -625,11 +625,10 @@
             currentCategory = 'Above Deck';
         } else if (equipment === 'RTG') {
             unitDropdownHTML = `<select id="unitNo" class="dark-input text-xs">${generateSelectRange('RTG', 34, 135)}</select>`;
-            // Added Filter Dropdown for RTG
             filterHTML = `
                 <div>
                     <label class="setup-label">Lift Filter</label>
-                    <select id="rtgFilter" onchange="window.updateRTGFilter(this.value)" class="dark-input text-xs w-full">
+                    <select id="rtgFilter" onchange="window.updateLiftFilter(this.value)" class="dark-input text-xs w-full">
                         <option value="Single">Single</option>
                         <option value="Dual">Dual</option>
                     </select>
@@ -640,15 +639,25 @@
                     <div><label class="setup-label">RTG#</label>${unitDropdownHTML}</div>
                 </div>
                 ${filterHTML}`;
-            currentCategory = 'Single'; // Default RTG category
+            currentCategory = 'Single';
         } else if (equipment === 'TT') {
             unitDropdownHTML = `<select id="unitNo" class="dark-input text-xs">${generateSelectRange('TT', 305, 500)}</select>`;
+            // Added Filter Dropdown for TT
+            filterHTML = `
+                <div>
+                    <label class="setup-label">Lift Filter</label>
+                    <select id="ttFilter" onchange="window.updateLiftFilter(this.value)" class="dark-input text-xs w-full">
+                        <option value="Single">Single</option>
+                        <option value="Dual">Dual</option>
+                    </select>
+                </div>`;
             inputDiv.innerHTML = `
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-2 gap-3 mb-3">
                     <div><label class="setup-label">OP-ID</label><input type="text" id="staffId" placeholder="STAFF" class="dark-input text-xs"></div>
                     <div><label class="setup-label">TT#</label>${unitDropdownHTML}</div>
-                </div>`;
-            currentCategory = 'Standard';
+                </div>
+                ${filterHTML}`;
+            currentCategory = 'Single';
         } else if (equipment === 'EH') {
             unitDropdownHTML = `<select id="unitNo" class="dark-input text-xs">${generateSelectRange('EH', 5, 20)}</select>`;
             inputDiv.innerHTML = `
@@ -678,7 +687,7 @@
     };
 
     window.updateQCCategory = (val) => { currentCategory = val; renderSteps(); };
-    window.updateRTGFilter = (val) => { currentCategory = val; }; // Update Category for RTG Single/Dual
+    window.updateLiftFilter = (val) => { currentCategory = val; }; // Update Category for Single/Dual filters
     
     window.updateMode = (mode) => {
         if (startTime) return;
