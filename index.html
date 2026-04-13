@@ -455,12 +455,24 @@
             }
         },
         RTG: {
-            LOADING: ["1. FROM PARK POSITION TO LOCK CONTAINER IN THE BAY", "2. FROM LOCK IN THE BAY TO A-ROW", "3. FROM A- ROW TO UNLOCK ON TRUCK", "4. FROM UNLOCK ON TRUCK TO PARK POSITION"],
-            DISCHARGE: ["1. FROM PARK POSITION TO LOCK ON TRUCK", "2. FROM LOCK ON TRUCK TO UNLOCK ON TARGET ROW", "3. FROM UNLOCK TO PARK POSITION"]
+            "Single": {
+                LOADING: ["1. FROM PARK POSITION TO LOCK CONTAINER IN THE BAY", "2. FROM LOCK IN THE BAY TO A-ROW", "3. FROM A- ROW TO UNLOCK ON TRUCK", "4. FROM UNLOCK ON TRUCK TO PARK POSITION"],
+                DISCHARGE: ["1. FROM PARK POSITION TO LOCK ON TRUCK", "2. FROM LOCK ON TRUCK TO UNLOCK ON TARGET ROW", "3. FROM UNLOCK TO PARK POSITION"]
+            },
+            "Dual": {
+                LOADING: ["1. FROM PARK POSITION TO LOCK CONTAINER IN THE BAY", "2. FROM LOCK IN THE BAY TO A-ROW", "3. FROM A- ROW TO UNLOCK ON TRUCK", "4. FROM UNLOCK ON TRUCK TO PARK POSITION"],
+                DISCHARGE: ["1. FROM PARK POSITION TO LOCK ON TRUCK", "2. FROM LOCK ON TRUCK TO UNLOCK ON TARGET ROW", "3. FROM UNLOCK TO PARK POSITION"]
+            }
         },
         TT: {
-            LOADING: ["1. Lifted by QC", "2. Move to RTG", "3. Rec from RTG", "4. Move to PULL", "5. Move to Pinning", "6. Fixing twistlock", "7. Standby", "8. Move under crane"],
-            DISCHARGE: ["1. Rec from QC", "2. Move to Pinning", "3. Twistlocks out", "4. Move to RTG", "5. Discharged", "6. Move to PULL", "7. Standby", "8. Move under crane"]
+            "Single": {
+                LOADING: ["1. Lifted by QC", "2. Move to RTG", "3. Rec from RTG", "4. Move to PULL", "5. Move to Pinning", "6. Fixing twistlock", "7. Standby", "8. Move under crane"],
+                DISCHARGE: ["1. Rec from QC", "2. Move to Pinning", "3. Twistlocks out", "4. Move to RTG", "5. Discharged", "6. Move to PULL", "7. Standby", "8. Move under crane"]
+            },
+            "Dual": {
+                LOADING: ["1. Lift container by QC", "2. Move from QC to 1st container yard location", "3. Load container on truck ( 1st Container)", "4. Move to 2nd container yard location", "5. Handle container on truck ( 2nd Container)", "6. Move to Pull Position", "7. Moving to Pining Station", "8. Mounting TWL", "9. Move to Standby Position", "10. Move to QC"],
+                DISCHARGE: ["1. Lift container by QC", "2. Move from QC to 1st container yard location", "3. Load container on truck ( 1st Container)", "4. Move to 2nd container yard location", "5. Handle container on truck ( 2nd Container)", "6. Move to Pull Position", "7. Moving to Pining Station", "8. Mounting TWL", "9. Move to Standby Position", "10. Move to QC"]
+            }
         },
         DEFAULT: ["1. Start cycle", "2. End cycle"]
     };
@@ -642,7 +654,6 @@
             currentCategory = 'Single';
         } else if (equipment === 'TT') {
             unitDropdownHTML = `<select id="unitNo" class="dark-input text-xs">${generateSelectRange('TT', 305, 500)}</select>`;
-            // Added Filter Dropdown for TT
             filterHTML = `
                 <div>
                     <label class="setup-label">Lift Filter</label>
@@ -687,7 +698,7 @@
     };
 
     window.updateQCCategory = (val) => { currentCategory = val; renderSteps(); };
-    window.updateLiftFilter = (val) => { currentCategory = val; }; // Update Category for Single/Dual filters
+    window.updateLiftFilter = (val) => { currentCategory = val; renderSteps(); };
     
     window.updateMode = (mode) => {
         if (startTime) return;
@@ -700,7 +711,10 @@
 
     function renderSteps() {
         const grid = document.getElementById('step-grid'); grid.innerHTML = '';
-        currentSteps = (currentCrane === 'QC' ? config.QC[currentCategory]?.[currentMode] : config[currentCrane]?.[currentMode] || config[currentCrane]) || config.DEFAULT;
+        // Robust selector for categories
+        currentSteps = (config[currentCrane]?.[currentCategory]?.[currentMode] || 
+                        config[currentCrane]?.[currentMode] || 
+                        config[currentCrane]) || config.DEFAULT;
         currentSteps.forEach((text, i) => {
             const btn = document.createElement('button'); btn.id = `s${i+1}`; btn.className = 'btn-calc btn-step step-available'; btn.innerText = text; btn.disabled = (i !== 0); btn.onclick = () => triggerStep(i + 1); grid.appendChild(btn);
         });
@@ -724,10 +738,39 @@
             clearInterval(activeInterval); activeInterval = setInterval(() => { document.getElementById('main-timer').innerText = ((Date.now() - startTime) / 1000).toFixed(2); }, 50);
             stopBtnEl.classList.add('hidden');
         } else { currentCycleData[`Step_${num - 1}`] = ((now - lastTime) / 1000).toFixed(2); }
-        document.querySelectorAll('.btn-step').forEach(b => { b.disabled = true; b.classList.remove('step-active'); b.classList.add('step-available'); });
-        const act = document.getElementById(`s${num}`); act.classList.replace('step-available', 'step-active'); act.disabled = false;
-        if (num === currentSteps.length) { stopBtnEl.classList.remove('hidden'); document.getElementById('s1').disabled = false; }
-        else { document.getElementById(`s${num + 1}`).disabled = false; }
+        
+        document.querySelectorAll('.btn-step').forEach(b => { 
+            b.disabled = true; 
+            b.classList.remove('step-active'); 
+            b.classList.add('step-available'); 
+        });
+        
+        const act = document.getElementById(`s${num}`); 
+        act.classList.replace('step-available', 'step-active'); 
+        act.disabled = false;
+        
+        // Skip logic for TT
+        if (currentCrane === 'TT') {
+            for (let i = num + 1; i <= currentSteps.length; i++) {
+                const futureBtn = document.getElementById(`s${i}`);
+                if (futureBtn) futureBtn.disabled = false;
+            }
+            // Allow stopping any time for TT
+            stopBtnEl.classList.remove('hidden');
+        } else {
+            if (num < currentSteps.length) {
+                const nextBtn = document.getElementById(`s${num + 1}`);
+                if (nextBtn) nextBtn.disabled = false;
+            }
+        }
+        
+        if (num === currentSteps.length) { 
+            stopBtnEl.classList.remove('hidden'); 
+        }
+        
+        // Always allow restarting from step 1
+        document.getElementById('s1').disabled = false;
+        
         lastTime = now;
     }
 
