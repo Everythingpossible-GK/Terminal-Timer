@@ -632,6 +632,9 @@
 
     window.initTimer = (equipment) => {
         currentCrane = equipment; 
+        currentMode = 'LOADING'; // Reset default mode
+        currentCategory = (equipment === 'QC') ? 'Above Deck' : 'Single'; // Reset default category
+        
         const inputDiv = document.getElementById('dynamic-inputs'); inputDiv.innerHTML = '';
         document.getElementById('modeToggleContainer').classList.remove('hidden');
         
@@ -660,7 +663,6 @@
                     <option value="OOG (OHF)">OOG (OHF)</option>
                     <option value="OOG (Wire sling)">OOG (Wire sling)</option>
                 </select>`;
-            currentCategory = 'Above Deck';
         } else if (equipment === 'RTG') {
             unitDropdownHTML = `<select id="unitNo" class="dark-input text-xs">${generateSelectRange('RTG', 34, 135)}</select>`;
             filterHTML = `
@@ -677,9 +679,8 @@
                     <div><label class="setup-label">RTG#</label>${unitDropdownHTML}</div>
                 </div>
                 ${filterHTML}`;
-            currentCategory = 'Single';
         } else if (equipment === 'TT') {
-            unitDropdownHTML = `<select id="unitNo" class="dark-input text-xs">${generateSelectRange('TT', 305, 500)}</select>`;
+            unitDropdownHTML = `<select id="unitNo" class="dark-input text-xs">${generateSelectRange('TT', 305, 505)}</select>`;
             filterHTML = `
                 <div>
                     <label class="setup-label">Lift Filter</label>
@@ -694,7 +695,6 @@
                     <div><label class="setup-label">TT#</label>${unitDropdownHTML}</div>
                 </div>
                 ${filterHTML}`;
-            currentCategory = 'Single';
         } else if (equipment === 'EH') {
             unitDropdownHTML = `<select id="unitNo" class="dark-input text-xs">${generateSelectRange('EH', 5, 20)}</select>`;
             inputDiv.innerHTML = `
@@ -720,7 +720,9 @@
             currentCategory = 'Standard';
         }
         
-        resetCurrentTimerUI(); updateMode('LOADING'); window.showScreen('timer-screen');
+        resetCurrentTimerUI(); 
+        updateMode('LOADING'); 
+        window.showScreen('timer-screen');
     };
 
     window.updateQCCategory = (val) => { currentCategory = val; renderSteps(); };
@@ -733,7 +735,7 @@
         const d = document.getElementById('m-dis');
         const r = document.getElementById('m-relieve');
         
-        // Reset all
+        // Reset styles for all mode buttons
         [l, d, r].forEach(btn => {
             if (btn) {
                 btn.classList.remove('mode-active');
@@ -741,7 +743,7 @@
             }
         });
 
-        // Set active
+        // Set requested mode as active
         let active;
         if (mode === 'LOADING') active = l;
         else if (mode === 'DISCHARGE') active = d;
@@ -761,13 +763,13 @@
                         <option value="Discharging">Discharging</option>
                         <option value="Loading">Loading</option>
                     `;
-                    currentCategory = 'Discharging';
+                    currentCategory = 'Discharging'; // Default Relieving Category
                 } else {
                     filter.innerHTML = `
                         <option value="Single">Single</option>
                         <option value="Dual">Dual</option>
                     `;
-                    currentCategory = 'Single';
+                    currentCategory = 'Single'; // Default Standard Category
                 }
             }
         }
@@ -780,12 +782,17 @@
         if (!grid) return;
         grid.innerHTML = '';
         
+        // Safety guard for TT Relieving to ensure category and mode align before render
+        if (currentCrane === 'TT' && currentMode === 'RELIEVING' && (currentCategory === 'Single' || currentCategory === 'Dual')) {
+            currentCategory = 'Discharging';
+        }
+        
         // Robust selector for categories - ensure we get an array
         let potentialSteps = (config[currentCrane]?.[currentCategory]?.[currentMode] || 
                              config[currentCrane]?.[currentMode] || 
                              config[currentCrane]);
         
-        // Final fallback if result is not an array (e.g. it found an object instead)
+        // Final fallback if result is not an array
         currentSteps = Array.isArray(potentialSteps) ? potentialSteps : config.DEFAULT;
         
         currentSteps.forEach((text, i) => {
@@ -826,7 +833,8 @@
         
         const act = document.getElementById(`s${num}`); 
         if (act) {
-            act.classList.replace('step-available', 'step-active'); 
+            act.classList.remove('step-available');
+            act.classList.add('step-active');
             act.disabled = false;
         }
         
@@ -865,6 +873,7 @@
 
     function finalizeCycleSilently(now) {
         clearInterval(activeInterval);
+        if (!startTime) return;
         const net = ((now - startTime) / 1000).toFixed(2);
         const waiting = (totalWaitingDuration / 1000).toFixed(2);
         currentCycleData[`Step_${currentSteps.length}`] = ((now - lastTime) / 1000).toFixed(2);
@@ -876,7 +885,16 @@
         saveLogsToLocal(); 
     }
 
-    window.stopCycle = () => { finalizeCycleSilently(Date.now()); document.getElementById('recordModal').classList.remove('hidden'); setTimeout(() => { document.getElementById('recordModal').classList.add('hidden'); resetCurrentTimerUI(); }, 1000); };
+    window.stopCycle = () => { 
+        if (!startTime) return;
+        finalizeCycleSilently(Date.now()); 
+        document.getElementById('recordModal').classList.remove('hidden'); 
+        setTimeout(() => { 
+            document.getElementById('recordModal').classList.add('hidden'); 
+            resetCurrentTimerUI(); 
+        }, 1000); 
+    };
+
     window.togglePause = () => { if (!startTime) return; const pBtn = document.getElementById('pause-btn'); if (!isPaused) { isPaused = true; delayStart = Date.now(); pBtn.style.opacity = '0.5'; clearInterval(activeInterval); } else { isPaused = false; let d = Date.now() - delayStart; startTime += d; lastTime += d; pBtn.style.opacity = '1'; activeInterval = setInterval(() => { document.getElementById('main-timer').innerText = ((Date.now() - startTime) / 1000).toFixed(2); }, 50); } };
     window.toggleWaiting = () => { if (!startTime) return; const wBtn = document.getElementById('wait-btn'); if (!isWaiting) { isWaiting = true; delayStart = Date.now(); wBtn.style.opacity = '0.5'; clearInterval(activeInterval); } else { isWaiting = false; let d = Date.now() - delayStart; totalWaitingDuration += d; startTime += d; lastTime += d; wBtn.style.opacity = '1'; activeInterval = setInterval(() => { document.getElementById('main-timer').innerText = ((Date.now() - startTime) / 1000).toFixed(2); }, 50); } };
     
